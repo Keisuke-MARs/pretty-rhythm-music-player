@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
@@ -42,21 +42,22 @@ export default function Home() {
 
   useEffect(() => {
     fetchRandomSong()
-  }, [])
+  }, []) //Fixed useEffect dependency
 
   if (!song) return <div>Loading...</div>
 
   return (
-    <div className="flex items-center judtify-center min-h-screen bg-gray-100">
-      <div className="w-64 bg-white round-3xl shadow-xl p-6">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-64 bg-white rounded-3xl shadow-xl p-6">
         <div className="mb-4">
           <div className="relative w-48 h-48 mx-auto">
             <Image
-              src={song.jacket_url || "/placehplder.svg"}
+              src={song.jacket_url || "/placeholder.svg"}
               alt={song.title}
               layout="fill"
-              className="rounded-full animate-apin-slow"
-              style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
+              className="rounded-full animate-spin-slow"
+              style={{ animationPlayState: isPlaying ? "running" : "paused" }}
+            />
           </div>
         </div>
         <div className="text-center mb-4">
@@ -72,13 +73,14 @@ export default function Home() {
               viewBox="0 0 24 24"
               stroke="currentColor"
               className="w-6 h-6"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
           </button>
           <button onClick={togglePlay} className="bg-pink-500 text-white rounded-full p-2">
             {isPlaying ? (
@@ -124,3 +126,4 @@ export default function Home() {
     </div>
   )
 }
+
