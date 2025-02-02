@@ -1,60 +1,96 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 
 interface Song {
   id: string
   title: string
   artist: string
-  album: string
-  jacket_url: string
   work: string
-  preview_url: string
+  spotify_data?: {
+    album_art: string
+    preview_url: string | null
+    spotify_url: string | null
+  }
 }
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
 
-  const fetchRandomSong = async () => {
-    const res = await fetch("/api/random-song")
-    const data = await res.json()
-    setSong(data)
-    if (audio) {
-      audio.pause()
-      setIsPlaying(false)
+  const fetchRandomSong = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/random-song")
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP errpr! status:${res.status}`)
+      }
+      const data: Song = await res.json()
+      setSong(data)
+      if (audio) {
+        audio.pause()
+        setIsPlaying(false)
+      }
+      if (data.spotify_data?.preview_url) {
+        const newAudio = new Audio(data.spotify_data.preview_url)
+        newAudio.addEventListener("ended", () => setIsPlaying(false))
+        setAudio(null)
+      }
+    } catch (error: unknown) {
+      console.error("Error fetching random song:", error)
+      setSong(null)
+      setAudio(null)
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError("An unknown error occurred")
+      }
+    } finally {
+      setIsLoading(false)
     }
-    setAudio(new Audio(data.preview_url))
-  }
+  }, [audio])
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (audio) {
       if (isPlaying) {
         audio.pause()
       } else {
         audio.play()
       }
-      setIsPlaying(!isPlaying)
+      setIsLoading(!isPlaying)
     }
-  }
+  }, [audio, isPlaying])
 
   useEffect(() => {
     fetchRandomSong()
-  }, []) //Fixed useEffect dependency
+    return () => {
+      if (audio) {
+        audio.pause()
+        audio.src = ""
+      }
+    }
+  }, [fetchRandomSong, audio])
 
-  if (!song) return <div>Loading...</div>
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error:{error}</div>
+  if (!song) return <div>No song found</div>
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-64 bg-white rounded-3xl shadow-xl p-6">
+      <div className="w-80 bg-white rounded-3xl shadow-xl p-6">
         <div className="mb-4">
-          <div className="relative w-48 h-48 mx-auto">
+          <div className="relative w-64 h-64 mx-auto">
             <Image
-              src={song.jacket_url || "/placeholder.svg"}
-              alt={song.title}
+              src={song.spotify_data?.album_art || "/default-album-art.png"}
+              alt={`Album art for ${song.title} by ${song.artist}`}
               layout="fill"
+              objectFit="cover"
               className="rounded-full animate-spin-slow"
               style={{ animationPlayState: isPlaying ? "running" : "paused" }}
             />
@@ -64,9 +100,20 @@ export default function Home() {
           <h2 className="text-xl font-bold">{song.title}</h2>
           <p className="text-gray-600">{song.artist}</p>
           <p className="text-gray-400 text-sm">{song.work}</p>
+          {song.spotify_data?.spotify_url && (
+            <a
+              href={song.spotify_data.spotify_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              Listen on Spotify
+            </a>
+          )}
         </div>
         <div className="flex justify-center space-x-4">
-          <button onClick={fetchRandomSong} className="bg-gray-200 rounded-full p-2">
+          <button onClick={fetchRandomSong}
+            className="bg-gray-200 rounded-full p-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -82,7 +129,7 @@ export default function Home() {
               />
             </svg>
           </button>
-          <button onClick={togglePlay} className="bg-pink-500 text-white rounded-full p-2">
+          <button onClick={togglePlay} className="bg-pink-500 text-white rounded-full p-2" disabled={!audio}>
             {isPlaying ? (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -126,4 +173,3 @@ export default function Home() {
     </div>
   )
 }
-
