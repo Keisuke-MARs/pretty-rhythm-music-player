@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server"
 import SpotifyWebApi from "spotify-web-api-node"
 
-const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/spotify-callback`
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`
+const redirectUri = `${baseUrl}/api/spotify-callback`
 
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT_ID,
@@ -29,11 +30,11 @@ export async function GET(request: Request) {
 
     if (error) {
         console.error("Spotify auth error:", error)
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}?error=${encodeURIComponent(error)}`)
+        return NextResponse.redirect(`${baseUrl}?error=${encodeURIComponent(error)}`)
     }
 
     if (!code) {
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}?error=no_code`)
+        return NextResponse.redirect(`${baseUrl}?error=no_code`)
     }
 
     try {
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
         const { access_token, refresh_token, expires_in } = data.body
 
         // アクセストークンをクッキーに保存
-        const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}?auth=success`)
+        const response = NextResponse.redirect(`${baseUrl}?auth=success`)
 
         response.cookies.set("spotify_access_token", access_token, {
             httpOnly: true,
@@ -54,9 +55,7 @@ export async function GET(request: Request) {
     } catch (error) {
         console.error("Error in Spotify callback:", error)
         return NextResponse.redirect(
-            `${process.env.NEXT_PUBLIC_BASE_URL}?error=${encodeURIComponent(
-                error instanceof Error ? error.message : "Authentication failed",
-            )}`,
+            `${baseUrl}?error=${encodeURIComponent(error instanceof Error ? error.message : "Authentication failed")}`,
         )
     }
 }
