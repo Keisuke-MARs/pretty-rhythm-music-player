@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import SpotifyWebApi from "spotify-web-api-node"
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`
-const redirectUri = `${baseUrl}/api/spotify-callback`
+// Fix the double slash issue by ensuring proper URL joining
+const redirectUri = new URL("/api/spotify-callback", baseUrl).toString()
 
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT_ID,
