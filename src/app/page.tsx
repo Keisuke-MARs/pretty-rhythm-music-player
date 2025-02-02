@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
@@ -120,7 +121,8 @@ export default function Home() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch("/api/spotify-auth")
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_BASE_URL
+      const response = await fetch(`${baseUrl}/api/spotify-auth`)
       const data = await response.json()
 
       if (data.error) {
@@ -144,6 +146,7 @@ export default function Home() {
   useEffect(() => {
     fetchRandomSong()
 
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_BASE_URL
     const urlParams = new URLSearchParams(window.location.search)
     const authStatus = urlParams.get("auth")
     const errorParam = urlParams.get("error")
