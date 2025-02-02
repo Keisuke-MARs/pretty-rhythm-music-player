@@ -1,7 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
+import SpotifyPlayer from "react-spotify-web-playback"
+import { motion, AnimatePresence } from "framer-motion"
+import VanillaTilt from "vanilla-tilt"
 
 interface Song {
   id: string
@@ -12,15 +16,80 @@ interface Song {
     album_art: string
     preview_url: string | null
     spotify_url: string | null
+    track_id: string | null
   }
 }
+
+const LoadingAnimation = () => (
+  <motion.div
+    className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-pink-200 to-purple-300 p-4"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+  >
+    <motion.div
+      className="w-20 h-20 border-4 border-purple-500 rounded-full"
+      animate={{
+        rotate: 360,
+        borderRadius: ["50%", "25%", "50%"],
+      }}
+      transition={{
+        duration: 2,
+        ease: "linear",
+        repeat: Number.POSITIVE_INFINITY,
+      }}
+    />
+    <motion.p
+      className="mt-4 text-xl font-semibold text-purple-800"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+    >
+      Loading...
+    </motion.p>
+  </motion.div>
+)
 
 export default function Home() {
   const [song, setSong] = useState<Song | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+  const [accessToken, setAccessToken] = useState("")
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const albumArtRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (cardRef.current) {
+      VanillaTilt.init(cardRef.current, {
+        max: 5,
+        speed: 400,
+        glare: true,
+        "max-glare": 0.2,
+      })
+    }
+
+    // アルバムアート用の新しい tilt エフェクト
+    if (albumArtRef.current) {
+      VanillaTilt.init(albumArtRef.current, {
+        max: 15,
+        speed: 400,
+        scale: 1.05,
+        glare: true,
+        "max-glare": 0.3,
+      })
+    }
+
+    return () => {
+      if (cardRef.current && (cardRef.current as any).vanillaTilt) {
+        ; (cardRef.current as any).vanillaTilt.destroy()
+      }
+      if (albumArtRef.current && (albumArtRef.current as any).vanillaTilt) {
+        ; (albumArtRef.current as any).vanillaTilt.destroy()
+      }
+    }
+  }, [song]) // song を依存配列に追加
 
   const fetchRandomSong = useCallback(async () => {
     setIsLoading(true)
@@ -29,23 +98,13 @@ export default function Home() {
       const res = await fetch("/api/random-song")
       if (!res.ok) {
         const errorData = await res.json()
-        throw new Error(errorData.error || `HTTP errpr! status:${res.status}`)
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`)
       }
       const data: Song = await res.json()
       setSong(data)
-      if (audio) {
-        audio.pause()
-        setIsPlaying(false)
-      }
-      if (data.spotify_data?.preview_url) {
-        const newAudio = new Audio(data.spotify_data.preview_url)
-        newAudio.addEventListener("ended", () => setIsPlaying(false))
-        setAudio(null)
-      }
     } catch (error: unknown) {
       console.error("Error fetching random song:", error)
       setSong(null)
-      setAudio(null)
       if (error instanceof Error) {
         setError(error.message)
       } else {
@@ -54,72 +113,165 @@ export default function Home() {
     } finally {
       setIsLoading(false)
     }
-  }, [audio])
+  }, [])
 
-  const togglePlay = useCallback(() => {
-    if (audio) {
-      if (isPlaying) {
-        audio.pause()
-      } else {
-        audio.play()
+  const initiateSpotifyAuth = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch("/api/spotify-auth")
+      const data = await response.json()
+
+      if (data.error) {
+        throw new Error(data.error)
       }
-      setIsLoading(!isPlaying)
+
+      if (!data.authorizeURL) {
+        throw new Error("No authorization URL received")
+      }
+
+      console.log("Auth Debug Info:", data.debug)
+      window.location.href = data.authorizeURL
+    } catch (error) {
+      console.error("Error initiating Spotify auth:", error)
+      setError(error instanceof Error ? error.message : "Failed to initiate Spotify authentication")
+    } finally {
+      setIsLoading(false)
     }
-  }, [audio, isPlaying])
+  }
 
   useEffect(() => {
     fetchRandomSong()
-    return () => {
-      if (audio) {
-        audio.pause()
-        audio.src = ""
-      }
-    }
-  }, [fetchRandomSong, audio])
 
-  if (isLoading) return <div>Loading...</div>
-  if (error) return <div>Error:{error}</div>
-  if (!song) return <div>No song found</div>
+    const urlParams = new URLSearchParams(window.location.search)
+    const authStatus = urlParams.get("auth")
+    const errorParam = urlParams.get("error")
+
+    if (authStatus === "success") {
+      setIsAuthenticated(true)
+      fetchAccessToken()
+    } else if (errorParam) {
+      setError(decodeURIComponent(errorParam))
+    }
+  }, [fetchRandomSong])
+
+  const fetchAccessToken = async () => {
+    try {
+      const response = await fetch("/api/spotify-token")
+      const data = await response.json()
+      if (data.access_token) {
+        setAccessToken(data.access_token)
+        checkUserPremiumStatus(data.access_token)
+      } else {
+        throw new Error("No access token received")
+      }
+    } catch (error) {
+      console.error("Error fetching access token:", error)
+      setError("Failed to fetch access token")
+    }
+  }
+
+  const checkUserPremiumStatus = async (token: string) => {
+    try {
+      const response = await fetch("https://api.spotify.com/v1/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      setIsPremium(data.product === "premium")
+    } catch (error) {
+      console.error("Error checking premium status:", error)
+    }
+  }
+
+  if (isLoading) return <LoadingAnimation />
+  if (error)
+    return (
+      <motion.div
+        className="flex items-center justify-center min-h-screen text-purple-900 bg-gradient-to-br from-pink-200 to-purple-300"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        Error: {error}
+      </motion.div>
+    )
+  if (!song)
+    return (
+      <motion.div
+        className="flex items-center justify-center min-h-screen text-purple-900 bg-gradient-to-br from-pink-200 to-purple-300"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        No song found
+      </motion.div>
+    )
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-80 bg-white rounded-3xl shadow-xl p-6">
-        <div className="mb-4">
-          <div className="relative w-64 h-64 mx-auto">
+    <motion.div
+      className="flex items-center justify-center min-h-screen bg-gradient-to-br from-pink-200 to-purple-300 p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        ref={cardRef}
+        className="w-full max-w-md bg-white bg-opacity-30 backdrop-filter backdrop-blur-lg rounded-3xl shadow-xl p-6 md:p-8 lg:p-10 border border-pink-200 border-opacity-50"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.div
+          className="mb-6 md:mb-8"
+          key={song.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div
+            ref={albumArtRef}
+            className="relative w-48 h-48 md:w-64 md:h-64 mx-auto album-art-container overflow-hidden rounded-full"
+          >
             <Image
               src={song.spotify_data?.album_art || "/default-album-art.png"}
               alt={`Album art for ${song.title} by ${song.artist}`}
-              layout="fill"
-              objectFit="cover"
-              className="rounded-full animate-spin-slow"
-              style={{ animationPlayState: isPlaying ? "running" : "paused" }}
+              fill
+              style={{ objectFit: "cover" }}
             />
           </div>
-        </div>
-        <div className="text-center mb-4">
-          <h2 className="text-xl font-bold">{song.title}</h2>
-          <p className="text-gray-600">{song.artist}</p>
-          <p className="text-gray-400 text-sm">{song.work}</p>
-          {song.spotify_data?.spotify_url && (
-            <a
-              href={song.spotify_data.spotify_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              Listen on Spotify
-            </a>
-          )}
-        </div>
-        <div className="flex justify-center space-x-4">
-          <button onClick={fetchRandomSong}
-            className="bg-gray-200 rounded-full p-2">
+        </motion.div>
+        <motion.div
+          className="text-center mb-6 md:mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <h2 className="text-xl md:text-2xl font-bold mb-2 text-purple-900">{song.title}</h2>
+          <p className="text-lg mb-1 text-purple-800">{song.artist}</p>
+          <p className="text-sm mb-3 text-purple-700">{song.work}</p>
+        </motion.div>
+        <motion.div
+          className="flex justify-center space-x-4 mb-6 md:mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <motion.button
+            onClick={fetchRandomSong}
+            className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-3 transition-colors"
+            aria-label="Get random song"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              className="w-6 h-6"
+              className="w-6 h-6 md:w-8 md:h-8 text-purple-800"
             >
               <path
                 strokeLinecap="round"
@@ -128,48 +280,86 @@ export default function Home() {
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
-          </button>
-          <button onClick={togglePlay} className="bg-pink-500 text-white rounded-full p-2" disabled={!audio}>
-            {isPlaying ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                className="w-6 h-6"
+          </motion.button>
+        </motion.div>
+        <AnimatePresence mode="wait">
+          {isAuthenticated ? (
+            isPremium && song.spotify_data?.track_id ? (
+              <motion.div
+                key="spotify-player"
+                className="mt-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.5 }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                <SpotifyPlayer
+                  token={accessToken}
+                  uris={[`spotify:track:${song.spotify_data.track_id}`]}
+                  autoPlay={false}
+                  styles={{
+                    activeColor: "#fff",
+                    bgColor: "#1db954",
+                    color: "#fff",
+                    loaderColor: "#fff",
+                    sliderColor: "#fff",
+                    trackArtistColor: "#ccc",
+                    trackNameColor: "#fff",
+                  }}
                 />
-              </svg>
+              </motion.div>
             ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                className="w-6 h-6"
+              <motion.div
+                key="open-spotify"
+                className="mt-4 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.5 }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+                <motion.a
+                  href={song.spotify_data?.spotify_url || "https://www.spotify.com"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-pink-400 hover:bg-pink-500 text-white px-6 py-3 rounded-full transition-colors text-sm md:text-base"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Open in Spotify
+                </motion.a>
+                <motion.p
+                  className="text-sm md:text-base text-purple-900 mt-3"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {isPremium ? "再生できない楽曲です" : "再生にはSpotify Premiumが必要です"}
+                </motion.p>
+              </motion.div>
+            )
+          ) : (
+            <motion.div
+              key="connect-spotify"
+              className="mt-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <motion.button
+                onClick={initiateSpotifyAuth}
+                className="w-full bg-pink-400 hover:bg-pink-500 text-white px-6 py-3 rounded-full transition-colors text-sm md:text-base"
+                disabled={isLoading}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isLoading ? "Connecting..." : "Connect Spotify"}
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   )
 }
+

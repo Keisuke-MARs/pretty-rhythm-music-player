@@ -44,12 +44,14 @@ export async function GET() {
 
             // Spotify API を使用して曲の情報を取得する
             const searchResults = await spotifyApi.searchTracks(`${song.title} ${song.artist}`)
+            console.log("Spotify search results:", JSON.stringify(searchResults.body, null, 2))
             if (searchResults.body.tracks && searchResults.body.tracks.items.length > 0) {
                 const trackInfo = searchResults.body.tracks.items[0]
                 song.spotify_data = {
                     album_art: trackInfo.album.images[0]?.url || "/default-album-art.png",
                     preview_url: trackInfo.preview_url,
                     spotify_url: trackInfo.external_urls.spotify,
+                    track_id: trackInfo.id, // 追加
                 }
             } else {
                 console.log("No Spotify track found for the song")
@@ -57,6 +59,7 @@ export async function GET() {
                     album_art: "/default-album-art.png",
                     preview_url: null,
                     spotify_url: null,
+                    track_id: null, // 追加
                 }
             }
         } catch (spotifyError) {
@@ -65,9 +68,10 @@ export async function GET() {
                 album_art: "/default-album-art.png",
                 preview_url: null,
                 spotify_url: null,
+                track_id: null, //追加
             }
         }
-
+        console.log("Song data:", JSON.stringify(song, null, 2))
         return NextResponse.json(song)
     } catch (error) {
         console.error("Error in random-song API:", error)
