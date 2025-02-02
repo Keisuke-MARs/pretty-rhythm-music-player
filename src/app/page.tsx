@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -71,7 +71,6 @@ export default function Home() {
       })
     }
 
-    // アルバムアート用の新しい tilt エフェクト
     if (albumArtRef.current) {
       VanillaTilt.init(albumArtRef.current, {
         max: 15,
@@ -90,7 +89,7 @@ export default function Home() {
         ; (albumArtRef.current as any).vanillaTilt.destroy()
       }
     }
-  }, [song]) // song を依存配列に追加
+  }, [])
 
   const fetchRandomSong = useCallback(async () => {
     setIsLoading(true)
@@ -134,6 +133,7 @@ export default function Home() {
       }
 
       console.log("Auth Debug Info:", data.debug)
+      alert(`Debug Info: ${JSON.stringify(data.debug, null, 2)}`)
       window.location.href = data.authorizeURL
     } catch (error) {
       console.error("Error initiating Spotify auth:", error)

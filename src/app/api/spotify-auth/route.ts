@@ -14,13 +14,13 @@ export async function GET() {
     try {
         const scopes = ["streaming", "user-read-email", "user-read-private"]
         const state = Math.random().toString(36).substring(7)
-        spotifyApi.setRedirectURI(redirectUri)
         const authorizeURL = spotifyApi.createAuthorizeURL(scopes, state)
 
         // デバッグ情報をログに出力
         console.log({
             clientId: process.env.SPOTIFY_CLIENT_ID ? "設定済み" : "未設定",
             redirectUri,
+            baseUrl,
             scopes,
             state,
             authorizeURL,
@@ -30,6 +30,7 @@ export async function GET() {
             authorizeURL,
             debug: {
                 redirectUri,
+                baseUrl,
                 scopes,
                 state,
             },
