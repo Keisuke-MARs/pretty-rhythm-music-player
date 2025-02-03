@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -7,7 +7,6 @@ import Image from "next/image"
 import SpotifyPlayer from "react-spotify-web-playback"
 import { motion, AnimatePresence } from "framer-motion"
 import VanillaTilt from "vanilla-tilt"
-import { reportIncorrectImage } from "@/lib/spotify-utils"
 
 interface Song {
   id: string
@@ -59,7 +58,6 @@ export default function Home() {
   const [accessToken, setAccessToken] = useState("")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
-  const [isReporting, setIsReporting] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const albumArtRef = useRef<HTMLDivElement>(null)
 
@@ -194,22 +192,6 @@ export default function Home() {
     }
   }
 
-  const handleReportImage = async () => {
-    if (song && !isReporting) {
-      setIsReporting(true)
-      try {
-        await reportIncorrectImage(song.id)
-        alert("画像の不一致を報告しました。ありがとうございます。")
-        fetchRandomSong()
-      } catch (error) {
-        console.error("Error reporting image:", error)
-        alert("報告中にエラーが発生しました。もう一度お試しください。")
-      } finally {
-        setIsReporting(false)
-      }
-    }
-  }
-
   if (isLoading) return <LoadingAnimation />
   if (error)
     return (
@@ -314,29 +296,6 @@ export default function Home() {
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </motion.button>
-          <motion.button
-            onClick={handleReportImage}
-            className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-3 transition-colors"
-            aria-label="Report incorrect image"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            disabled={isReporting}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              className="w-6 h-6 md:w-8 md:h-8 text-purple-800"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
           </motion.button>

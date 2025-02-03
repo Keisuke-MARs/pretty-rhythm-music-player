@@ -56,13 +56,3 @@ export async function updateSongInfo(songId: string): Promise<void> {
     }
 }
 
-export async function reportIncorrectImage(songId: string): Promise<void> {
-    const { error } = await supabase.from("image_reports").insert({ song_id: songId, reported_at: new Date() })
-
-    if (error) {
-        console.error("Error reporting image:", error)
-    } else {
-        await updateSongInfo(songId)
-    }
-}
-
