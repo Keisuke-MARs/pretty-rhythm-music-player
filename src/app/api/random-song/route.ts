@@ -1,30 +1,21 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getSpotifyData, updateSongInfo } from "@/lib/spotify-utils"
-import type { SpotifyTrack } from "@/types/spotify"
+import type { Database } from "@/types/database"
+import { getSpotifyData } from "@/lib/spotify-utils"
 
 export async function GET() {
     try {
-        console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL)
-        console.log("Supabase Key:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "Set" : "Not Set")
-
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-        if (!supabaseUrl || !supabaseKey) {
-            console.error("Missing Supabase environment variables")
-            return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            throw new Error("Missing Supabase environment variables")
         }
 
-        console.log("Creating Supabase client...")
-        const supabase = createClient(supabaseUrl, supabaseKey)
+        const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
-        console.log("Fetching random song...")
         const { data: songs, error: supabaseError } = await supabase.from("songs").select("*")
 
         if (supabaseError) {
-            console.error("Supabase error:", supabaseError)
-            return NextResponse.json({ error: "Database error", details: supabaseError.message }, { status: 500 })
+            console.error("Database error:", supabaseError)
+            return NextResponse.json({ error: "Database error" }, { status: 500 })
         }
 
         if (!songs || songs.length === 0) {
@@ -35,7 +26,7 @@ export async function GET() {
         const song = songs[randomIndex]
 
         try {
-            const spotifyData = (await getSpotifyData(song.title, song.artist)) as SpotifyTrack
+            const spotifyData = await getSpotifyData(song.title, song.artist, song.spotify_track_id)
             if (spotifyData) {
                 song.spotify_data = {
                     album_art: spotifyData.album.images[0]?.url || "/default-album-art.png",
@@ -43,8 +34,6 @@ export async function GET() {
                     spotify_url: spotifyData.external_urls.spotify,
                     track_id: spotifyData.id,
                 }
-                // Update the song info in the background
-                updateSongInfo(song.id).catch(console.error)
             } else {
                 throw new Error("No Spotify data found")
             }
@@ -57,7 +46,7 @@ export async function GET() {
                 track_id: null,
             }
         }
-        console.log("Song data:", JSON.stringify(song, null, 2))
+
         return NextResponse.json(song)
     } catch (error) {
         console.error("Error in random-song API:", error)
