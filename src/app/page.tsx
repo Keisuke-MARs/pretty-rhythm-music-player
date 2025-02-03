@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -132,8 +132,6 @@ export default function Home() {
         throw new Error("No authorization URL received")
       }
 
-      console.log("Auth Debug Info:", data.debug)
-      alert(`Debug Info: ${JSON.stringify(data.debug, null, 2)}`)
       window.location.href = data.authorizeURL
     } catch (error) {
       console.error("Error initiating Spotify auth:", error)

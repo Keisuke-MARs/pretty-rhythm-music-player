@@ -17,7 +17,6 @@ export async function GET(request: Request) {
     const error = searchParams.get("error")
     const state = searchParams.get("state")
 
-    // エラーハンドリングの改善
     if (error) {
         console.error("Spotify auth error:", error)
         return NextResponse.redirect(`${baseUrl}?error=${encodeURIComponent(error)}`)
@@ -29,22 +28,19 @@ export async function GET(request: Request) {
     }
 
     try {
-        console.log("Attempting to exchange code for tokens...")
         const data = await spotifyApi.authorizationCodeGrant(code)
-        console.log("Token exchange successful")
-
         const { access_token, refresh_token, expires_in } = data.body
 
         // リダイレクトレスポンスの作成
-        const response = NextResponse.redirect(`${baseUrl}?auth=success`)
+        const response = NextResponse.redirect(new URL("/?auth=success", baseUrl))
 
-        // Cookieの設定を改善
+        // Cookieの設定
         response.cookies.set("spotify_access_token", access_token, {
             httpOnly: true,
-            secure: true, // Always use secure in production
+            secure: true,
             sameSite: "lax",
             maxAge: expires_in,
-            path: "/", // Ensure cookie is available across the site
+            path: "/",
         })
 
         if (refresh_token) {
@@ -61,8 +57,7 @@ export async function GET(request: Request) {
     } catch (error) {
         console.error("Error in Spotify callback:", error)
         const errorMessage = error instanceof Error ? error.message : "Authentication failed"
-        console.error("Detailed error:", errorMessage)
-        return NextResponse.redirect(`${baseUrl}?error=${encodeURIComponent(errorMessage)}`)
+        return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(errorMessage)}`, baseUrl))
     }
 }
 
