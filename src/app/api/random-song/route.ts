@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import SpotifyWebApi from "spotify-web-api-node"
-
-const spotifyApi = new SpotifyWebApi({
-    clientId: process.env.SPOTIFY_CLIENT_ID,
-    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-})
+import { getSpotifyData, updateSongInfo } from "@/lib/spotify-utils"
+import type { SpotifyTrack } from "@/types/spotify"
 
 export async function GET() {
     try {
@@ -39,36 +35,26 @@ export async function GET() {
         const song = songs[randomIndex]
 
         try {
-            const data = await spotifyApi.clientCredentialsGrant()
-            spotifyApi.setAccessToken(data.body["access_token"])
-
-            // Spotify API を使用して曲の情報を取得する
-            const searchResults = await spotifyApi.searchTracks(`${song.title} ${song.artist}`)
-            console.log("Spotify search results:", JSON.stringify(searchResults.body, null, 2))
-            if (searchResults.body.tracks && searchResults.body.tracks.items.length > 0) {
-                const trackInfo = searchResults.body.tracks.items[0]
+            const spotifyData = (await getSpotifyData(song.title, song.artist)) as SpotifyTrack
+            if (spotifyData) {
                 song.spotify_data = {
-                    album_art: trackInfo.album.images[0]?.url || "/default-album-art.png",
-                    preview_url: trackInfo.preview_url,
-                    spotify_url: trackInfo.external_urls.spotify,
-                    track_id: trackInfo.id, // 追加
+                    album_art: spotifyData.album.images[0]?.url || "/default-album-art.png",
+                    preview_url: spotifyData.preview_url,
+                    spotify_url: spotifyData.external_urls.spotify,
+                    track_id: spotifyData.id,
                 }
+                // Update the song info in the background
+                updateSongInfo(song.id).catch(console.error)
             } else {
-                console.log("No Spotify track found for the song")
-                song.spotify_data = {
-                    album_art: "/default-album-art.png",
-                    preview_url: null,
-                    spotify_url: null,
-                    track_id: null, // 追加
-                }
+                throw new Error("No Spotify data found")
             }
         } catch (spotifyError) {
             console.error("Spotify API error:", spotifyError)
             song.spotify_data = {
-                album_art: "/default-album-art.png",
+                album_art: song.jacket_url || "/default-album-art.png",
                 preview_url: null,
                 spotify_url: null,
-                track_id: null, //追加
+                track_id: null,
             }
         }
         console.log("Song data:", JSON.stringify(song, null, 2))
