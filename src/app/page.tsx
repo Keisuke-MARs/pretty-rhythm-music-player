@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -160,6 +160,10 @@ export default function Home() {
   const fetchAccessToken = async () => {
     try {
       const response = await fetch("/api/spotify-token")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      }
       const data = await response.json()
       if (data.access_token) {
         setAccessToken(data.access_token)
@@ -169,7 +173,8 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error fetching access token:", error)
-      setError("Failed to fetch access token")
+      setError(error instanceof Error ? error.message : "Failed to fetch access token")
+      setIsAuthenticated(false)
     }
   }
 
@@ -191,12 +196,24 @@ export default function Home() {
   if (error)
     return (
       <motion.div
-        className="flex items-center justify-center min-h-screen text-purple-900 bg-gradient-to-br from-pink-200 to-purple-300"
+        className="flex flex-col items-center justify-center min-h-screen text-purple-900 bg-gradient-to-br from-pink-200 to-purple-300 p-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        Error: {error}
+        <h2 className="text-2xl font-bold mb-4">エラーが発生しました</h2>
+        <p className="text-lg mb-4">{error}</p>
+        <motion.button
+          onClick={() => {
+            setError(null)
+            fetchRandomSong()
+          }}
+          className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          再試行
+        </motion.button>
       </motion.div>
     )
   if (!song)

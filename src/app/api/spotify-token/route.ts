@@ -1,50 +1,22 @@
 import { NextResponse } from "next/server"
-import SpotifyWebApi from "spotify-web-api-node"
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`
-const redirectUri = `${baseUrl}/api/spotify-callback`
-
-const spotifyApi = new SpotifyWebApi({
-    clientId: process.env.SPOTIFY_CLIENT_ID,
-    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-    redirectUri: redirectUri,
-})
+import { cookies } from "next/headers"
 
 export async function GET() {
-    try {
-        const scopes = ["streaming", "user-read-email", "user-read-private"]
-        const state = Math.random().toString(36).substring(7)
-        spotifyApi.setRedirectURI(redirectUri)
-        const authorizeURL = spotifyApi.createAuthorizeURL(scopes, state)
+    const cookieStore = cookies()
+    const accessToken = (await cookieStore).get("spotify_access_token")
 
-        // デバッグ情報をログに出力
-        console.log({
-            clientId: process.env.SPOTIFY_CLIENT_ID ? "設定済み" : "未設定",
-            redirectUri,
-            scopes,
-            state,
-            authorizeURL,
-        })
-
-        return NextResponse.json({
-            authorizeURL,
-            debug: {
-                redirectUri,
-                scopes,
-                state,
-            },
-        })
-    } catch (error) {
-        console.error("Spotify auth error:", error)
-        return NextResponse.json(
-            {
-                error: "Failed to create authorization URL",
-                details: error instanceof Error ? error.message : "Unknown error",
-            },
-            {
-                status: 500,
-            },
-        )
+    if (!accessToken) {
+        console.error("No access token found in cookies")
+        return NextResponse.json({ error: "No access token found" }, { status: 401 })
     }
+
+    // トークンの有効期限をチェック（例: 1時間）
+    const tokenExpiry = (await cookieStore).get("spotify_token_expiry")
+    if (tokenExpiry && Date.now() > Number.parseInt(tokenExpiry.value)) {
+        console.error("Access token has expired")
+        return NextResponse.json({ error: "Access token has expired" }, { status: 401 })
+    }
+
+    return NextResponse.json({ access_token: accessToken.value })
 }
 
