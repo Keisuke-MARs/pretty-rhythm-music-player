@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import SpotifyWebApi from "spotify-web-api-node"
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`
-// Fix the double slash issue by ensuring proper URL joining
-const redirectUri = new URL("/api/spotify-callback", baseUrl).toString()
+// Remove trailing slashes from base URL if present
+const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, "")
+const redirectUri = `${baseUrl}/api/spotify-callback`
 
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT_ID,
@@ -18,23 +18,19 @@ export async function GET() {
         const authorizeURL = spotifyApi.createAuthorizeURL(scopes, state)
 
         // デバッグ情報をログに出力
-        console.log({
+        const debugInfo = {
             clientId: process.env.SPOTIFY_CLIENT_ID ? "設定済み" : "未設定",
             redirectUri,
             baseUrl,
             scopes,
             state,
             authorizeURL,
-        })
+        }
+        console.log("Auth Debug Info:", debugInfo)
 
         return NextResponse.json({
             authorizeURL,
-            debug: {
-                redirectUri,
-                baseUrl,
-                scopes,
-                state,
-            },
+            debug: debugInfo,
         })
     } catch (error) {
         console.error("Spotify auth error:", error)
