@@ -1,3 +1,8 @@
+export interface SpotifyArtist {
+    name: string
+    id: string
+}
+
 export interface SpotifyImage {
     url: string
     height: number
@@ -8,16 +13,15 @@ export interface SpotifyAlbum {
     images: SpotifyImage[]
 }
 
-export interface SpotifyExternalUrls {
-    spotify: string
-}
-
 export interface SpotifyTrack {
     id: string
     name: string
     preview_url: string | null
-    external_urls: SpotifyExternalUrls
+    external_urls: {
+        spotify: string
+    }
     album: SpotifyAlbum
+    artists: SpotifyArtist[]
 }
 
 export interface SpotifySearchResponse {
